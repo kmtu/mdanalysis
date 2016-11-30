@@ -1,13 +1,19 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding: utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver Beckstein
-# and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
 #
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
@@ -59,6 +65,7 @@ from ..exceptions import NoDataError
 from . import groups
 from .groups import (GroupBase, Atom, Residue, Segment,
                      AtomGroup, ResidueGroup, SegmentGroup)
+from ._get_readers import get_reader_for, get_parser_for
 from .topology import Topology
 from .topologyattrs import AtomAttr, ResidueAttr, SegmentAttr
 
@@ -165,10 +172,6 @@ class Universe(object):
     """
 
     def __init__(self, *args, **kwargs):
-        from ..topology.core import get_parser_for
-        from ..topology.base import TopologyReader
-        from ..coordinates.base import ProtoReader
-
         # hold on to copy of kwargs; used by external libraries that
         # reinitialize universes
         self._kwargs = copy.deepcopy(kwargs)
@@ -183,9 +186,14 @@ class Universe(object):
             self.atoms = None
             return
 
-        coordinatefile = args[1:]
-        if not coordinatefile:
-            coordinatefile = None
+        topology_format = kwargs.pop('topology_format', None)
+        if len(args) == 1:
+            # special hacks to treat a coordinate file as a coordinate AND
+            # topology file
+            if kwargs.get('format', None) is None:
+                kwargs['format'] = topology_format
+            elif topology_format is None:
+                topology_format = kwargs.get('format', None)
 
         # if we're given a Topology object, we don't need to parse anything
         if isinstance(args[0], Topology):
@@ -193,37 +201,8 @@ class Universe(object):
             self.filename = None
         else:
             self.filename = args[0]
-            topology_format = kwargs.pop('topology_format', None)
 
-            if len(args) == 1:
-                # special hacks to treat a coordinate file as a coordinate AND
-                # topology file
-                if kwargs.get('format', None) is None:
-                    kwargs['format'] = topology_format
-                elif topology_format is None:
-                    topology_format = kwargs.get('format', None)
-
-                # if passed a Reader, use that
-                fmt = kwargs.get('format', None)
-                try:
-                    if issubclass(fmt, ProtoReader):
-                        coordinatefile = self.filename
-                except TypeError:
-                    # or if file is known as a topology & coordinate file, use
-                    # that
-                    if fmt is None:
-                        fmt = util.guess_format(self.filename)
-                    if (fmt in MDAnalysis.coordinates._READERS
-                            and fmt in MDAnalysis.topology._PARSERS):
-                        coordinatefile = self.filename
-
-            # build the topology (or at least a list of atoms)
-            try:  # Try and check if the topology format is a TopologyReader
-                if issubclass(topology_format, TopologyReader):
-                    parser = topology_format
-            except TypeError:  # But strings/None raise TypeError in issubclass
-                parser = get_parser_for(self.filename,
-                                        format=topology_format)
+            parser = get_parser_for(self.filename, format=topology_format)
             try:
                 with parser(self.filename) as p:
                     self._topology = p.parse()
@@ -240,6 +219,19 @@ class Universe(object):
         self._generate_from_topology()
 
         # Load coordinates
+        # if passed Topology object as top
+        if self.filename is None:
+            coordinatefile = None
+        elif len(args) == 1:
+            # Can the topology file also act as coordinate file?
+            try:
+                _ = get_reader_for(self.filename, format=kwargs.get('format', None))
+            except ValueError:
+                coordinatefile = None
+            else:
+                coordinatefile = [self.filename]
+        else:
+            coordinatefile = args[1:]
         self.load_new(coordinatefile, **kwargs)
 
         # Check for guess_bonds
@@ -351,37 +343,18 @@ class Universe(object):
         if filename is None:
             return
 
-        from ..coordinates.core import get_reader_for
-        from ..coordinates.base import ProtoReader
-
         if len(util.asiterable(filename)) == 1:
             # make sure a single filename is not handed to the ChainReader
             filename = util.asiterable(filename)[0]
         logger.debug("Universe.load_new(): loading {0}...".format(filename))
 
-        reader_format = format
-        reader = None
-
-        # Check if we were passed a Reader to use
         try:
-            if reader_format is not None and issubclass(reader_format, ProtoReader):
-                reader = reader_format
-        except TypeError:
-            pass
+            reader = get_reader_for(filename, format=format)
+        except ValueError as err:
+            raise TypeError(
+                "Cannot find an appropriate coordinate reader for file '{0}'.\n"
+                "           {1}".format(filename, err))
 
-        if reader is None:
-            # Check if we need to use ChainReader
-            if util.iterable(filename):
-                # Save the format and pass this to ChainReader
-                reader_format = 'CHAIN'
-                kwargs['format'] = reader_format
-            try:
-                reader = get_reader_for(filename,
-                                        format=reader_format)
-            except ValueError as err:
-                raise TypeError(
-                    "Cannot find an appropriate coordinate reader for file '{0}'.\n"
-                    "           {1}".format(filename, err))
         # supply number of atoms for readers that cannot do it for themselves
         kwargs['n_atoms'] = self.atoms.n_atoms
 

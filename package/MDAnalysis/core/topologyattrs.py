@@ -1,13 +1,20 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 fileencoding=utf-8
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver Beckstein
-# and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
+#
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
 # J. Comput. Chem. 32 (2011), 2319--2327, doi:10.1002/jcc.21787
@@ -507,7 +514,7 @@ class Masses(AtomAttr):
 
         return masses
 
-    def center_of_mass(group, **kwargs):
+    def center_of_mass(group, pbc=None):
         """Center of mass of the Group.
 
         Parameters
@@ -516,24 +523,20 @@ class Masses(AtomAttr):
             If ``True``, move all atoms within the primary unit cell before
             calculation. [``False``]
 
-        .. note::
+        Returns
+        -------
+        center : ndarray
+            center of group given masses as weights
+
+        Notes
+        -----
             The :class:`MDAnalysis.core.flags` flag *use_pbc* when set to
             ``True`` allows the *pbc* flag to be used by default.
 
         .. versionchanged:: 0.8 Added `pbc` parameter
         """
-        atomgroup = group.atoms
-
-        pbc = kwargs.pop('pbc', flags['use_pbc'])
-        masses = atomgroup.masses
-
-        if pbc:
-            positions = atomgroup.pack_into_box(inplace=False)
-        else:
-            positions = atomgroup.positions
-
-        return np.sum(positions * masses[:, np.newaxis],
-                      axis=0) / masses.sum()
+        return group.atoms.center(weights=group.atoms.masses,
+                                  pbc=pbc)
 
     transplants[GroupBase].append(
         ('center_of_mass', center_of_mass))

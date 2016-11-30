@@ -14,7 +14,7 @@ The rules for this file:
 
 ------------------------------------------------------------------------------
 ??/??/16 kain88-de, fiona-naughton, richardjgowers, tyler.je.reddy, jdetle
-         euhruska, orbeckst, rbrtdlg, jbarnoud, wouterboomsma, shanmbic
+         euhruska, orbeckst, rbrtdlg, jbarnoud, wouterboomsma, shanmbic, dotsdl
 
   * 0.16.0
 
@@ -46,8 +46,13 @@ Enhancements
   * Selecting atoms by resid now respects icodes if they were present. Ie
     select_atoms('resid 163A') works! (Issue #839 PR #1066)
   * Added ability to read MMTF format files (#907 PR #1069)
+  * Added MDAnalysis.fetch_mmtf function to download from PDB and create
+    Universe (#810 PR #1082)
   * Added coordinates.null.NullWriter, which behaves like a Writer but
     ignores all input; useful for suppressing output.
+  * Added random access support to GMSReader and TRJReader (#1081)
+  * Added atomgroup.center(weights, pbc) method to calculate the center
+    of a group given weights
 
 Fixes
   * Removed MDAnalysis.analysis.PDBToBinaryTraj (Issue #1035)

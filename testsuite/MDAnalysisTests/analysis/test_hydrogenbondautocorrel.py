@@ -1,13 +1,19 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 fileencoding=utf-8
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver
-# Beckstein and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
 #
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
@@ -19,6 +25,7 @@ from MDAnalysisTests.datafiles import TRZ, TRZ_psf, PRM, TRJ
 from MDAnalysisTests import module_not_found, tempdir
 from numpy.testing import assert_, assert_array_almost_equal, assert_raises, assert_, dec
 import numpy as np
+import mock
 
 import MDAnalysis as mda
 from MDAnalysis.analysis.hbonds import HydrogenBondAutoCorrel as HBAC
@@ -251,16 +258,15 @@ class TestHydrogenBondAutocorrel(object):
         )
         assert_raises(ValueError, hbond.solve)
 
-    def test_unslicable_traj_VE(self):
-        u = mda.Universe(PRM, TRJ)
-        H = u.atoms[:10]
-        O = u.atoms[10:20]
-        N = u.atoms[20:30]
+    @mock.patch('MDAnalysis.coordinates.TRZ.TRZReader._read_frame')
+    def test_unslicable_traj_VE(self, mock_read):
+        mock_read.side_effect = TypeError
+
         assert_raises(ValueError, HBAC,
-                      u,
-                      hydrogens=H,
-                      acceptors=O,
-                      donors=N,
+                      self.u,
+                      hydrogens=self.H,
+                      acceptors=self.O,
+                      donors=self.N,
                       bond_type='continuous',
                       sample_time=0.06
         )

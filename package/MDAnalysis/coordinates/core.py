@@ -1,13 +1,19 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver Beckstein
-# and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
 #
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
@@ -34,50 +40,9 @@ from __future__ import absolute_import
 
 import six
 
-from . import (
-    _READERS,
-    _SINGLEFRAME_WRITERS,
-    _MULTIFRAME_WRITERS,
-)
-
 from ..lib import util
 from ..lib.mdamath import triclinic_box, triclinic_vectors, box_volume
-
-
-def get_reader_for(filename, format=None):
-    """Return the appropriate trajectory reader class for *filename*.
-
-    Parameters
-    ----------
-    filename : str
-        filename of the input trajectory or coordinate file
-    kwargs
-        Keyword arguments for the selected Reader class.
-
-    Returns
-    -------
-    A Reader object
-
-    Notes
-    -----
-        Automatic detection is disabled when an explicit *format* is
-        provided.
-    """
-    if format is None:
-        format = util.guess_format(filename)
-    format = format.upper()
-    try:
-        return _READERS[format]
-    except KeyError:
-        raise ValueError(
-            "Unknown coordinate trajectory format '{0}' for '{1}'. The FORMATs \n"
-            "           {2}\n"
-            "           are implemented in MDAnalysis.\n"
-            "           See http://docs.mdanalysis.org/documentation_pages/coordinates/init.html#id1\n"
-            "           Use the format keyword to explicitly set the format: 'Universe(...,format=FORMAT)'\n"
-            "           For missing formats, raise an issue at "
-            "http://issues.mdanalysis.org".format(
-                format, filename, _READERS.keys()))
+from ..core._get_readers import get_reader_for, get_writer_for
 
 
 def reader(filename, **kwargs):
@@ -119,98 +84,6 @@ def reader(filename, **kwargs):
     else:
         Reader = get_reader_for(filename)
         return Reader(filename, **kwargs)
-
-
-def get_writer_for(filename, format=None, multiframe=None):
-    """Return an appropriate trajectory or frame writer class for `filename`.
-
-    The format is determined by the *format* argument or the extension of
-    `filename`. If `format` is provided, it takes precedence over The
-    extension of `filename`.
-
-    Parameters
-    ----------
-    filename : str or ``None``
-        If no *format* is supplied, then the filename for the trajectory is
-        examined for its extension and the Writer is chosen accordingly.
-        If ``None`` is provided, the
-        :class:`~MDAnalysis.coordinates.null.NullWriter` is selected.
-    format : str, optional
-        Explicitly set a format.
-    multiframe : bool, optional
-        ``True``: write multiple frames to the trajectory; ``False``: only
-        write a single coordinate frame; ``None``: first try trajectory (multi
-        frame writers), then the single frame ones. Default is ``None``.
-
-    Returns
-    -------
-    A Writer object
-
-    Raises
-    ------
-    ValueError:
-        The format could not be deduced from `filename` or an unexpected value
-        was provided for the `multiframe` argument.
-    TypeError:
-        No writer was found for the required format or the required `filename`
-        argument was omitted.
-
-
-    .. versionchanged:: 0.7.6
-       Added `multiframe` keyword; the default ``None`` reflects the previous
-       behaviour.
-
-    .. versionchanged:: 0.14.0
-       Removed the default value for the `format` argument. Now, the value
-       provided with the `format` parameter takes precedence over the extension
-       of `filename`. A :exc:`ValueError` is raised if the format cannot be
-       deduced from `filename`.
-
-    .. versionchanged:: 0.16.0
-       The `filename`
-    """
-    if filename is None:
-        # need to import here to avoid circular reference
-        from .null import NullWriter
-        return NullWriter
-
-    if format is None and filename:
-        try:
-            root, ext = util.get_ext(filename)
-        except AttributeError:
-            # An AttributeError is raised if filename cannot
-            # be manipulated as a string.
-            raise ValueError('File format could not be guessed from "{0}"'
-                             .format(filename))
-        else:
-            format = util.check_compressed_format(root, ext)
-    if multiframe is None:
-        try:
-            return _MULTIFRAME_WRITERS[format]
-        except KeyError:
-            try:
-                return _SINGLEFRAME_WRITERS[format]
-            except KeyError:
-                raise TypeError(
-                    "No trajectory or frame writer for format '{0}'"
-                    .format(format))
-    elif multiframe is True:
-        try:
-            return _MULTIFRAME_WRITERS[format]
-        except KeyError:
-            raise TypeError(
-                "No trajectory writer for format {0}"
-                "".format(format))
-    elif multiframe is False:
-        try:
-            return _SINGLEFRAME_WRITERS[format]
-        except KeyError:
-            raise TypeError(
-                "No single frame writer for format {0}".format(format))
-    else:
-        raise ValueError("Unknown value '{0}' for multiframe,"
-                         " only True, False, None allowed"
-                         "".format(multiframe))
 
 
 def writer(filename, n_atoms=None, **kwargs):

@@ -1,13 +1,20 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 fileencoding=utf-8
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver Beckstein
-# and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
+#
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
 # J. Comput. Chem. 32 (2011), 2319--2327, doi:10.1002/jcc.21787
@@ -368,7 +375,48 @@ class GroupBase(_MutableBase):
     def dimensions(self):
         return self._u.trajectory.ts.dimensions
 
-    def center_of_geometry(self, **kwargs):
+    def center(self, weights, pbc=None):
+        """Calculate center of group given some weights
+
+        Parameters
+        ----------
+        weights : array_like
+            weights to be used
+        pbc : boolean, optional
+            ``True``: Move all atoms within the primary unit cell
+            before calculation [``False``]
+
+        Returns
+        -------
+        center : ndarray
+            weighted center of group
+
+        Examples
+        --------
+
+        To find the charge weighted center of a given Atomgroup::
+
+            >>> sel = u.select_atoms('prop mass > 4.0')
+            >>> sel.center(sel.charges)
+
+
+        Notes
+        -----
+        If the :class:`MDAnalysis.core.flags` flag *use_pbc* is set to
+        ``True`` then the `pbc` keyword is used by default.
+
+        """
+        atoms = self.atoms
+        if pbc is None:
+            pbc = flags['use_pbc']
+        if pbc:
+            xyz = atoms.pack_into_box(inplace=False)
+        else:
+            xyz = atoms.positions
+
+        return np.average(xyz, weights=weights, axis=0)
+
+    def center_of_geometry(self, pbc=None):
         """Center of geometry (also known as centroid) of the selection.
 
         Parameters
@@ -376,6 +424,11 @@ class GroupBase(_MutableBase):
         pbc : boolean, optional
             ``True``: Move all atoms within the primary unit cell
             before calculation [``False``]
+
+        Returns
+        -------
+        center : ndarray
+            geometric center of group
 
         Notes
         -----
@@ -385,13 +438,7 @@ class GroupBase(_MutableBase):
 
         .. versionchanged:: 0.8 Added `pbc` keyword
         """
-        atomgroup = self.atoms
-
-        pbc = kwargs.pop('pbc', flags['use_pbc'])
-        if pbc:
-            return np.sum(atomgroup.pack_into_box(inplace=False), axis=0) / len(atomgroup)
-        else:
-            return np.sum(atomgroup.positions, axis=0) / len(atomgroup)
+        return self.center(None, pbc=pbc)
 
     centroid = center_of_geometry
 

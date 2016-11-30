@@ -1,13 +1,19 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 fileencoding=utf-8
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver
-# Beckstein and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
 #
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
@@ -21,13 +27,14 @@ import MDAnalysis
 import MDAnalysis as mda
 from MDAnalysis.analysis import rms, align
 
-from numpy.testing import (TestCase, dec,
+from numpy.testing import (TestCase, dec, assert_equal,
                            assert_almost_equal, raises, assert_,
                            assert_array_almost_equal)
 
 import numpy as np
 
 import os
+import sys
 
 from MDAnalysis.exceptions import SelectionError, NoDataError
 from MDAnalysisTests.datafiles import GRO, XTC, rmsfArray, PSF, DCD
@@ -148,6 +155,15 @@ class TestRMSD(object):
     def tearDown(self):
         del self.universe
         del self.tempdir
+
+    def test_progress_meter(self):
+        RMSD = MDAnalysis.analysis.rms.RMSD(self.universe, quiet=False)
+        sys.stderr = sys.stdout
+        RMSD.run()
+        actual = sys.stderr.getvalue().strip().split('\r')[-1]
+        expected = 'RMSD  6.93 A at frame    98/98  [100.0%]'
+        sys.stderr = sys.__stderr__
+        assert_equal(actual, expected)
 
     def test_rmsd(self):
         RMSD = MDAnalysis.analysis.rms.RMSD(self.universe, select='name CA',

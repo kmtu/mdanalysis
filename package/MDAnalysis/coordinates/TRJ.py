@@ -1,15 +1,19 @@
 # -*- Mode: python; tab-width: 4; indent-tabs-mode:nil; coding:utf-8 -*-
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
 #
-# MDAnalysis --- http://www.MDAnalysis.org
-# Copyright (c) 2006-2015 Naveen Michaud-Agrawal, Elizabeth J. Denning, Oliver
-# Beckstein and contributors (see AUTHORS for the full list)
+# MDAnalysis --- http://www.mdanalysis.org
+# Copyright (c) 2006-2016 The MDAnalysis Development Team and contributors
+# (see the file AUTHORS for the full list of names)
 #
 # Released under the GNU Public Licence, v2 or any higher version
 #
 # Please cite your use of MDAnalysis in published work:
-
-
+#
+# R. J. Gowers, M. Linke, J. Barnoud, T. J. E. Reddy, M. N. Melo, S. L. Seyler,
+# D. L. Dotson, J. Domanski, S. Buchoux, I. M. Kenney, and O. Beckstein.
+# MDAnalysis: A Python package for the rapid analysis of molecular dynamics
+# simulations. In S. Benthall and S. Rostrup editors, Proceedings of the 15th
+# Python in Science Conference, pages 102-109, Austin, TX, 2016. SciPy.
 #
 # N. Michaud-Agrawal, E. J. Denning, T. B. Woolf, and O. Beckstein.
 # MDAnalysis: A Toolkit for the Analysis of Molecular Dynamics Simulations.
@@ -221,11 +225,17 @@ class TRJReader(base.Reader):
         self.box_line_parser = util.FORTRANReader("3F8.3")
 
         # Now check for box
-        self.periodic = False
         self._detect_amber_box()
 
         # open file, read first frame
         self._read_next_timestep()
+
+    def _read_frame(self, frame):
+        if self.trjfile is None:
+            self.open_trajectory()
+        self.trjfile.seek(self._offsets[frame])
+        self.ts.frame = frame - 1  # gets +1'd in _read_next
+        return self._read_next_timestep()
 
     def _read_next_timestep(self):
         # FORMAT(10F8.3)  (X(i), Y(i), Z(i), i=1,NATOM)
@@ -322,17 +332,21 @@ class TRJReader(base.Reader):
             return self._n_frames
 
     def _read_trj_n_frames(self, filename):
-        self._reopen()
+        lpf = self.lines_per_frame
+        if self.periodic:
+            lpf += 1
 
+        self._offsets = offsets = []
         counter = 0
-        try:
-            while True:
-                next(self)
+        with util.openany(self.filename, 'r') as f:
+            line = f.readline()  # ignore first line
+            while line:
+                if counter % lpf == 0:
+                    offsets.append(f.tell())
+                line = f.readline()
                 counter += 1
-        except StopIteration:
-            self.rewind()
-
-        return counter
+        offsets.pop()  # last offset is EOF
+        return len(offsets)
 
     @property
     def n_atoms(self):
