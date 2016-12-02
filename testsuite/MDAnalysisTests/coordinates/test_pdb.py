@@ -7,6 +7,7 @@ import os
 
 from nose.plugins.attrib import attr
 from numpy.testing import (assert_equal, assert_, dec,
+                           assert_array_equal,
                            assert_array_almost_equal,
                            assert_almost_equal, assert_raises, assert_)
 from unittest import TestCase
@@ -883,4 +884,43 @@ def test_write_pdb_zero_atoms():
 
         with mda.Writer(outfile, ag.n_atoms) as w:
             assert_raises(IndexError, w.write, ag)
-        
+
+
+class TestPDBRemapIndices(object):
+    def setUp(self):
+        self.u = make_Universe(('altLocs', 'resnames', 'segids', 'resids',
+                                'occupancies', 'tempfactors', 'names', 'serials'),
+                               trajectory=True)
+        self.tmpdir = tempdir.TempDir()
+        self.outfile = self.tmpdir.name + '/out.pdb'
+
+    def tearDown(self):
+        try:
+            os.unlink(self.outfile)
+        except OSError:
+            pass
+        del self.tmpdir
+        del self.outfile
+        del self.u
+
+    def test_with_remap(self):
+        ag = self.u.atoms[40:50]
+
+        with mda.Writer(self.outfile, n_atoms=len(ag)) as w:
+            w.write(ag)
+
+        unew = mda.Universe(self.outfile)
+
+        assert_array_equal(np.arange(10) + 1,
+                           unew.atoms.ids)
+
+    def test_without_remap(self):
+        ag = self.u.atoms[40:50]
+
+        with mda.Writer(self.outfile, n_atoms=len(ag), keep_atomids=True) as w:
+            w.write(ag)
+
+        unew = mda.Universe(self.outfile)
+
+        assert_array_equal(ag.ids,
+                           unew.atoms.ids)

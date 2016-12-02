@@ -431,6 +431,9 @@ class PDBWriter(base.Writer):
     .. versionchanged:: 0.14.0
        PDB doesn't save charge information
 
+    .. versionchanged:: 0.16.0
+       Writing an empty AtomGroup now raises an IndexError
+       Added keep_atomids kwarg to preserve original atom ids
     """
     fmt = {
         'ATOM': (
@@ -489,40 +492,35 @@ class PDBWriter(base.Writer):
 
     def __init__(self, filename, bonds="conect", n_atoms=None, start=0, step=1,
                  remarks="Created by PDBWriter",
-                 convert_units=None, multiframe=None):
+                 convert_units=None, multiframe=None, keep_atomids=False):
         """Create a new PDBWriter
 
-        :Arguments:
-         *filename*
+        Parameters
+        ----------
+        filename : str
            name of output file
-         *start*
+        start : int, optional
            starting timestep
-         *step*
+        step : int, optional
            skip between subsequent timesteps
-         *remarks*
+        remarks : str, optional
            comments to annotate pdb file (added to the TITLE record); note that
            any remarks from the trajectory that serves as input are
            written to REMARK records with lines longer than :attr:`remark_max_length` (66
            characters) being wrapped.
-         *convert_units*
+        convert_units
            units are converted to the MDAnalysis base format; ``None`` selects
            the value of :data:`MDAnalysis.core.flags` ['convert_lengths']
-         *bonds*
+        bonds
            write bonds to the PDB file as CONECT_ records [``False``]
-
-           .. Note::
-
-              Currently only works when writing a whole :class:`Universe` and
-              if bond information is available in the topology. (For selections
-              smaller than the whole :class:`Universe`, the atom numbering in
-              the CONECT_ records would not match the numbering of the atoms in
-              the new PDB file and therefore a :exc:`NotImplementedError` is
-              raised.)
-
-         *multiframe*
+        multiframe : bool, optional
            ``False``: write a single frame to the file; ``True``: create a
            multi frame PDB file in which frames are written as MODEL_ ... ENDMDL_
            records. If ``None``, then the class default is chosen.    [``None``]
+        keep_atomids : bool, optional
+           If ``True`` the atom indices as defined in the AtomGroup are written to
+           the output, otherwise atom indices will be numbered sequentially from 1.
+           [``False``]
 
         .. _CONECT: http://www.wwpdb.org/documentation/format32/sect10.html#CONECT
         .. _MODEL: http://www.wwpdb.org/documentation/format32/sect9.html#MODEL
@@ -542,6 +540,8 @@ class PDBWriter(base.Writer):
         self.convert_units = convert_units
         self._multiframe = self.multiframe if multiframe is None else multiframe
         self.bonds = bonds
+
+        self.keep_atomids = keep_atomids
 
         self.frames_written = 0
         if start < 0:
@@ -667,8 +667,7 @@ class PDBWriter(base.Writer):
         conect = ([a] + sorted(con[a])
                   for a in atoms if a in con)
 
-        self.remap_indices = True
-        if self.remap_indices:  # option for issue 1072
+        if not self.keep_atomids:
             conect = (map(lambda x: mapping[x], row) for row in conect)
 
         for c in conect:
@@ -885,9 +884,14 @@ class PDBWriter(base.Writer):
         tempfactors = get_attr('tempfactors', 0.0)
         atomnames = get_attr('names', 'X')
 
-        for i, atom in enumerate(atoms):
+        if self.keep_atomids:
+            indices = atoms.ids
+        else:
+            indices = range(1, len(atoms) + 1)
+
+        for i, index in enumerate(indices):
             vals = {}
-            vals['serial'] = int(str(i + 1)[-5:])  # check for overflow here?
+            vals['serial'] = int(str(index)[-5:])  # check for overflow here?
             vals['name'] = self._deduce_PDB_atom_name(atomnames[i], resnames[i])
             vals['altLoc'] = altlocs[i][:1]
             vals['resName'] = resnames[i][:4]
@@ -998,7 +1002,7 @@ class PDBWriter(base.Writer):
         .. _CONECT: http://www.wwpdb.org/documentation/format32/sect10.html#CONECT
 
         """
-        conect = ["{0:5d}".format(entry + 1) for entry in conect]
+        conect = ("{0:5d}".format(entry + 1) for entry in conect)
         conect = "".join(conect)
         self.pdbfile.write(self.fmt['CONECT'].format(conect))
 
