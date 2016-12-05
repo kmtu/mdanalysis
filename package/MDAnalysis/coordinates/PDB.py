@@ -539,7 +539,10 @@ class PDBWriter(base.Writer):
         # convert length and time to base units
         self.convert_units = convert_units
         self._multiframe = self.multiframe if multiframe is None else multiframe
-        self.bonds = bonds
+        if not bonds in ('conect', 'all', None):
+            raise ValueError("bonds has to be either None, 'conect' or 'all'")
+        else:
+            self.bonds = bonds
 
         self.keep_atomids = keep_atomids
 
@@ -643,33 +646,30 @@ class PDBWriter(base.Writer):
         if not self.obj or not hasattr(self.obj.universe, 'bonds'):
             return
 
-        bondset = set(itertools.chain(*(a.bonds for a in self.obj.atoms)))
-
-        mapping = {index: i for i, index in enumerate(self.obj.atoms.indices)}
-
-        # Write out only the bonds that were defined in CONECT records
-        if self.bonds == "conect":
-            bonds = ((bond[0].index, bond[1].index) for bond in bondset if not bond.is_guessed)
-        elif self.bonds == "all":
-            bonds = ((bond[0].index, bond[1].index) for bond in bondset)
-        else:
-            raise ValueError("bonds has to be either None, 'conect' or 'all'")
+        ag = self.obj.atoms
+        
+        # Find set of bonds that are exclusively within this AtomGroup        
+        bondset = set(itertools.chain(*(a.bonds for a in ag)))
+        atomset = set(ag)
+        if self.bonds == 'conect':  # remove guessed bonds
+            bondset = {val for val in bondset if not val.is_guessed}
 
         con = collections.defaultdict(list)
-        for a1, a2 in bonds:
-            if not (a1 in mapping and a2 in mapping):
+        for a1, a2 in bondset:
+            if not (a1 in atomset and a2 in atomset):
                 continue
             con[a2].append(a1)
             con[a1].append(a2)
 
-        atoms = np.sort(self.obj.atoms.indices)
+        if not self.keep_atomids:
+            mapping = {index: i + 1 for i, index in enumerate(ag.indices)}
 
-        conect = ([a] + sorted(con[a])
-                  for a in atoms if a in con)
+        conect = ([a.index] + sorted(lambda x: x.index, con[a])
+                  for a in sorted(ag) if a in con)
 
         if not self.keep_atomids:
             conect = (map(lambda x: mapping[x], row) for row in conect)
-
+                
         for c in conect:
             self.CONECT(c)
 
