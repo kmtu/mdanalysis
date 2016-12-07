@@ -44,16 +44,22 @@ class _NCDFReaderTest(_TRJReaderTest):
         assert_almost_equal(ref, self.universe.trajectory.ts.dt, self.prec)
 
     def test_get_writer(self):
-        w = self.universe.trajectory.Writer('out.ncdf')
-
-        assert_(w.n_atoms == len(self.universe.atoms))
-        assert_(w.remarks.startswith('AMBER NetCDF format'))
+        with self.universe.trajectory.Writer('out.ncdf') as w: 
+            assert_(w.n_atoms == len(self.universe.atoms))
+            assert_(w.remarks.startswith('AMBER NetCDF format'))
 
     def test_get_writer_custom_n_atoms(self):
-        w = self.universe.trajectory.Writer('out.ncdf', n_atoms=42, remarks='Hi!')
+        with self.universe.trajectory.Writer('out.ncdf', n_atoms=42, remarks='Hi!') as w:
+            assert_(w.n_atoms == 42)
+            assert_(w.remarks == 'Hi!')
 
-        assert_(w.n_atoms == 42)
-        assert_(w.remarks == 'Hi!')
+    def test_wrong_natoms(self):
+        assert_raises(ValueError, mda.coordinates.TRJ.NCDFReader, self.filename, n_atoms=2)
+
+    def test_read_on_closed(self):
+        self.universe.trajectory.close()
+
+        assert_raises(IOError, self.universe.trajectory.__getitem__, 2)
 
 
 class TestNCDFReader(_NCDFReaderTest, RefVGV):
@@ -402,6 +408,11 @@ class TestNetCDFImport(object):
         else:
             # fail if we don't get importerror
             raise AssertionError
+        finally:
+            try:
+                os.unlink('myfile.ncdf')
+            except OSError:
+                pass
 
     @mock.patch('__builtin__.__import__', wraps=__builtin__.__import__)
     def test_import_netcdfwriter(self, mock_imp):
@@ -416,14 +427,14 @@ class TestNetCDFImport(object):
                 return mock.DEFAULT
         mock_imp.side_effect = block_netcdf
 
-        try:
-            wr = NCDFWriter('myfile.ncdf', 100)
-            wr._init_netcdf()
-        except ImportError as e:
-            assert_('netCDF4 package missing' in e.args[0])
-            assert_('See installation instructions at' in e.args[0])
-        else:
-            raise AssertionError
+        with NCDFWriter('myfile.ncdf', 100) as wr:
+            try:
+                wr._init_netcdf()
+            except ImportError as e:
+                assert_('netCDF4 package missing' in e.args[0])
+                assert_('See installation instructions at' in e.args[0])
+            else:
+                raise AssertionError
 
 
 class TestNCDFWriterErrors(object):
@@ -448,16 +459,13 @@ class TestNCDFWriterErrors(object):
     def test_wrong_n_atoms(self):
         from MDAnalysis.coordinates.TRJ import NCDFWriter
 
-        w = NCDFWriter(self.outfile, 100)
-
-        u = make_Universe(trajectory=True)
-
-        assert_raises(IOError, w.write, u.trajectory.ts)
+        with NCDFWriter(self.outfile, 100) as w:
+            u = make_Universe(trajectory=True)
+            assert_raises(IOError, w.write, u.trajectory.ts)
 
     def test_no_ts(self):
         # no ts supplied at any point
         from MDAnalysis.coordinates.TRJ import NCDFWriter
 
-        w = NCDFWriter(self.outfile, 100)
-
-        assert_raises(IOError, w.write_next_timestep)
+        with NCDFWriter(self.outfile, 100) as w:
+            assert_raises(IOError, w.write_next_timestep)

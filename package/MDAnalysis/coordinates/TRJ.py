@@ -843,6 +843,10 @@ class NCDFWriter(base.Writer):
         .. _`netcdf4storage.py`:
            https://storage.googleapis.com/google-code-attachments/mdanalysis/issue-109/comment-2/netcdf4storage.py
         """
+        pos = ts._pos
+        time = ts.time
+        unitcell = ts.dimensions
+
         if self.convert_units:
             # make a copy of the scaled positions so that the in-memory
             # timestep is not changed (would have lead to wrong results if
@@ -850,13 +854,9 @@ class NCDFWriter(base.Writer):
             # implementation could lead to memory problems and/or slow-down for
             # very big systems because we temporarily create a new array pos
             # for each frame written
-            pos = self.convert_pos_to_native(ts._pos, inplace=False)
-            time = self.convert_time_to_native(ts.time, inplace=False)
+            pos = self.convert_pos_to_native(pos, inplace=False)
+            time = self.convert_time_to_native(time, inplace=False)
             unitcell = self.convert_dimensions_to_unitcell(ts)
-        else:
-            pos = ts._pos
-            time = ts.time
-            unitcell = ts.dimensions
 
         # write step
         self.trjfile.variables['coordinates'][self.curr_frame, :, :] = pos
